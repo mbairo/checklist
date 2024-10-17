@@ -18,8 +18,7 @@ class _HomeState extends State<Home> {
   List _listaDeTarefasRemovidas = [];
   Map<String, dynamic>? _mapUltimaTarefaRemovida;
   int? _ultimoIndexRemovido;
-
-  static const int _maxItensRemovidos = 10;
+  int _paginaAtual = 0;
 
   Future<File> _getFile() async {
     final diretorio = await getApplicationCacheDirectory();
@@ -71,11 +70,6 @@ class _HomeState extends State<Home> {
   void _adicionarTarefaRemovida(Map<String, dynamic> tarefaRemovida) {
     setState(() {
       _listaDeTarefasRemovidas.add(tarefaRemovida);
-
-      // Se a lista ultrapassar o limite, remove o item mais antigo (primeiro item da lista)
-      // if (_listaDeTarefasRemovidas.length > _maxItensRemovidos) {
-      //   _listaDeTarefasRemovidas.removeAt(0);
-      // }
     });
   }
 
@@ -88,7 +82,7 @@ class _HomeState extends State<Home> {
   Widget criarItemDaLista(context, index) {
     return Dismissible(
       key: Key(_listaDeTarefas[index]['nomeDaTarefa']),
-      direction: DismissDirection.endToStart,
+      direction: DismissDirection.startToEnd,
       onDismissed: (direction) {
         setState(() {
           _mapUltimaTarefaRemovida = _listaDeTarefas[index];
@@ -122,7 +116,7 @@ class _HomeState extends State<Home> {
         color: Colors.red,
         padding: const EdgeInsets.all(16),
         child: const Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+          mainAxisAlignment: MainAxisAlignment.start,
           children: [
             Icon(
               Icons.delete,
@@ -147,84 +141,149 @@ class _HomeState extends State<Home> {
     );
   }
 
+  void _mudarPagina(int index) {
+    setState(() {
+      _paginaAtual = index;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Center(
-          child: Text("Checklist"),
-        ),
         backgroundColor: const Color.fromARGB(255, 54, 244, 197),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.delete),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => Lixeira(
-                    listaDeTarefasRemovidas: _listaDeTarefasRemovidas,
-                    listaDeTarefas: _listaDeTarefas,
-                    salvarArquivo: _salvarArquivo,
-                  ),
-                ),
-              ).then((listaAtualizada) {
-                if (listaAtualizada != null) {
-                  setState(() {
-                    _listaDeTarefas = listaAtualizada;
-                  });
-                }
-              });
-            },
+        title: Text(_paginaAtual == 0 ? "Checklist" : "Lixeira"),
+      ),
+
+      body: _paginaAtual == 0
+          ? ReorderableListView(
+              onReorder: (oldIndex, newIndex) {
+                setState(() {
+                  if (newIndex > oldIndex) {
+                    newIndex -= 1;
+                  }
+                  final item = _listaDeTarefas.removeAt(oldIndex);
+                  _listaDeTarefas.insert(newIndex, item);
+                  _salvarArquivo();
+                });
+              },
+              children: List.generate(_listaDeTarefas.length, (index) {
+                return criarItemDaLista(context, index);
+              }),
+            )
+          : Lixeira(
+              listaDeTarefasRemovidas: _listaDeTarefasRemovidas,
+              listaDeTarefas: _listaDeTarefas,
+              salvarArquivo: _salvarArquivo,
+            ),
+
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+
+      floatingActionButton: _paginaAtual == 0
+          ? FloatingActionButton(
+              backgroundColor: const Color.fromARGB(255, 54, 244, 197),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) {
+                    return AlertDialog(
+                      title: Center(
+                        child: Text("Adicionar nova tarefa"),
+                      ),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextField(
+                            decoration:
+                                InputDecoration(labelText: "Digite sua tarefa"),
+                            controller: _controllerTextoDigitado,
+                          ),
+                          SizedBox(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              ElevatedButton(
+                                child: Text("Cancelar"),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                              SizedBox(width: 10),
+                              ElevatedButton(
+                                child: Text("Salvar"),
+                                onPressed: () {
+                                  _salvarTarefa();
+                                  Navigator.pop(context);
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+              child: const Icon(
+                Icons.add,
+                color: Colors.black,
+              ),
+            )
+          : FloatingActionButton(
+              backgroundColor: Color(0xFFD32F2F),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) {
+                    return AlertDialog(
+                      title: Center(child: Text("Excluir Histórico?")),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              ElevatedButton(
+                                child: Text("Sim"),
+                                onPressed: () {
+                                  setState(() {
+                                    _listaDeTarefasRemovidas.clear();
+                                    _salvarTarefa();
+                                  });
+                                  Navigator.pop(context);
+                                },
+                              ),
+                              SizedBox(width: 10),
+                              ElevatedButton(
+                                child: Text("Cancelar"),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ],
+                          )
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+              child: const Icon(
+                Icons.delete_forever,
+                color: Color(0xFFFFCDD2),
+              ),
+            ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _paginaAtual,
+        onTap: _mudarPagina,
+        selectedItemColor: Color.fromARGB(255, 14, 187, 144),
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.delete_forever),
+            label: 'Lixeira',
           ),
         ],
-      ),
-      body: ReorderableListView(
-        onReorder: (oldIndex, newIndex) {
-          setState(() {
-            if (newIndex > oldIndex) {
-              newIndex -= 1;
-            }
-            final item = _listaDeTarefas.removeAt(oldIndex);
-            _listaDeTarefas.insert(newIndex, item);
-            _salvarArquivo();
-          });
-        },
-        children: List.generate(_listaDeTarefas.length, (index) {
-          return criarItemDaLista(context, index);
-        }),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: FloatingActionButton(
-        child: Icon(Icons.add),
-        backgroundColor: const Color.fromARGB(255, 54, 244, 197),
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (context) {
-              return AlertDialog(
-                title: Text("Adicionar nova tarefa"),
-                content: TextField(
-                  decoration: InputDecoration(labelText: "Digite sua tarefa"),
-                  controller: _controllerTextoDigitado,
-                ),
-                actions: [
-                  ElevatedButton(
-                    child: Text("Cancelar"),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  ElevatedButton(
-                    child: Text("Salvar"),
-                    onPressed: () {
-                      _salvarTarefa();
-                      Navigator.pop(context);
-                    },
-                  ),
-                ],
-              );
-            },
-          );
-        },
       ),
     );
   }

@@ -18,7 +18,7 @@ class _HomeState extends State<Home> {
   List _listaDeTarefasRemovidas = [];
   Map<String, dynamic>? _mapUltimaTarefaRemovida;
   int? _ultimoIndexRemovido;
-  int _paginaAtual = 0; // Controla qual página está ativa (0 = Home, 1 = Lixeira)
+  int _paginaAtual = 0;
 
   Future<File> _getFile() async {
     final diretorio = await getApplicationCacheDirectory();
@@ -141,7 +141,7 @@ class _HomeState extends State<Home> {
     );
   }
 
-  // Função para trocar entre as páginas (Home ou Lixeira)
+//Função para alterar aba do app  ####################################
   void _mudarPagina(int index) {
     setState(() {
       _paginaAtual = index;
@@ -153,51 +153,75 @@ class _HomeState extends State<Home> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color.fromARGB(255, 54, 244, 197),
-        title: const Text("Checklist"),
-      ),
-      body: _paginaAtual == 0
-          ? ReorderableListView(
-              onReorder: (oldIndex, newIndex) {
-                setState(() {
-                  if (newIndex > oldIndex) {
-                    newIndex -= 1;
-                  }
-                  final item = _listaDeTarefas.removeAt(oldIndex);
-                  _listaDeTarefas.insert(newIndex, item);
-                  _salvarArquivo();
-                });
-              },
-              children: List.generate(_listaDeTarefas.length, (index) {
-                return criarItemDaLista(context, index);
-              }),
-            )
-          : Lixeira(
-              listaDeTarefasRemovidas: _listaDeTarefasRemovidas,
-              listaDeTarefas: _listaDeTarefas,
-              salvarArquivo: _salvarArquivo,
+        title: Stack(
+          children: <Widget>[
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                icon: const Icon(Icons.delete),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => Lixeira(
+                        listaDeTarefasRemovidas: _listaDeTarefasRemovidas,
+                        listaDeTarefas: _listaDeTarefas,
+                        salvarArquivo: _salvarArquivo,
+                      ),
+                    ),
+                  ).then((listaAtualizada) {
+                    if (listaAtualizada != null) {
+                      setState(() {
+                        _listaDeTarefas = listaAtualizada;
+                      });
+                    }
+                  });
+                },
+              ),
             ),
-
+            const Align(
+              alignment: Alignment.bottomLeft,
+              child: Text("Checklist"),
+            )
+          ],
+        ),
+      ),
+      body: ReorderableListView(
+        onReorder: (oldIndex, newIndex) {
+          setState(() {
+            if (newIndex > oldIndex) {
+              newIndex -= 1;
+            }
+            final item = _listaDeTarefas.removeAt(oldIndex);
+            _listaDeTarefas.insert(newIndex, item);
+            _salvarArquivo();
+          });
+        },
+        children: List.generate(_listaDeTarefas.length, (index) {
+          return criarItemDaLista(context, index);
+        }),
+      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: FloatingActionButton(
-        child: const Icon(Icons.add),
+        child: Icon(Icons.add),
         backgroundColor: const Color.fromARGB(255, 54, 244, 197),
         onPressed: () {
           showDialog(
             context: context,
             builder: (context) {
               return AlertDialog(
-                title: const Text("Adicionar nova tarefa"),
+                title: Text("Adicionar nova tarefa"),
                 content: TextField(
-                  decoration: const InputDecoration(labelText: "Digite sua tarefa"),
+                  decoration: InputDecoration(labelText: "Digite sua tarefa"),
                   controller: _controllerTextoDigitado,
                 ),
                 actions: [
                   ElevatedButton(
-                    child: const Text("Cancelar"),
+                    child: Text("Cancelar"),
                     onPressed: () => Navigator.pop(context),
                   ),
                   ElevatedButton(
-                    child: const Text("Salvar"),
+                    child: Text("Salvar"),
                     onPressed: () {
                       _salvarTarefa();
                       Navigator.pop(context);
@@ -208,27 +232,6 @@ class _HomeState extends State<Home> {
             },
           );
         },
-      ),
-
-      // BottomNavigationBar para alternar entre Home e Lixeira
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _paginaAtual, // Define a página ativa
-        onTap: _mudarPagina, // Altera a página ao tocar no ícone
-
-        items: const [
-
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home), // Ícone Home
-            label: 'Home',
-          ),
-
-          BottomNavigationBarItem(
-            icon: Icon(Icons.delete_forever), // Ícone Lixeira
-            label: 'Lixeira',
-          ),
-          
-        ],
-
       ),
     );
   }
